@@ -18,7 +18,10 @@ def error(update, context):
 
 
 def start_command(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text='Привет, давай пообщаемся?')
+    context.bot.send_message(chat_id=update.effective_chat.id,
+                             text='Привет, давай пообщаемся? Данный бот умеет показывать текущую погоду '
+                                  'по команде /weather ( название города) или геолокации, а также распознавать голос.'
+                             )
 
 
 def echo_message(update, context):
@@ -29,7 +32,9 @@ def help_command(update, context):
     response = 'Комманды: ' \
                '\n/start - запустить бота ' \
                '\n/help - доступные комманды ' \
-               '\n/weather (название города) - текущая погода'
+               '\n/weather (название города) - текущая погода. ' \
+               '\nУзнать погоду также можно по геолокации.'
+
     context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
 
@@ -105,7 +110,7 @@ def get_weather_message(request):
 
 def transcribe_voice_message(update, context):
     duration = update.message.voice.duration
-    logger.info('transcribe_voice_message. Message duration: ' + duration)
+    logger.info('transcribe_voice. Message duration: {}'.format(duration))
 
     # Конвертация аудио из [audio/x-opus+ogg] в [audio/x-wav]
     voice = context.bot.getFile(update.message.voice.file_id)
@@ -114,18 +119,20 @@ def transcribe_voice_message(update, context):
     # Получение голоса из аудиофайла
     recognizer = speech_recognition.Recognizer()
     with speech_recognition.WavFile('file.wav') as source:
-        recognizer.adjust_for_ambient_noise(source)
+        # recognizer.adjust_for_ambient_noise(source)
         audio = recognizer.record(source)
 
     # Конвертация звука в текст
+    text = ''
     try:
         text = recognizer.recognize_google(audio)
         logger.info(text)
-        context.bot.send_message(chat_id=update.effective_chat.id, text=text)
     except speech_recognition.UnknownValueError:
         logger.warning('Невозможно распознать голос и конвертировать его в текст!')
     except speech_recognition.RequestError as error:
         logger.warning('Невозможно отправить запрос на распознание голоса! \nСообщение ошибки: [{}]'.format(error))
+
+    context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
 
 def main():
@@ -165,7 +172,7 @@ def main():
     updater.bot.setWebhook('https://leodegtelegrambot.herokuapp.com/' + config.token_telegram)
 
     # Начинаем поиск обновлений
-    # updater.start_polling(clean=True)
+    #updater.start_polling(clean=True)
 
     # Останавливаем бота, если были нажаты Ctrl + C
     updater.idle()
