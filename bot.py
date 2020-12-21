@@ -114,7 +114,7 @@ def transcribe_voice_message(update, context):
 
     # Конвертация аудио из [audio/x-opus+ogg] в [audio/x-wav]
     voice = context.bot.getFile(update.message.voice.file_id)
-    ftransc.core.transcode(voice.download('file.ogg'), 'wav')
+    ftransc.core.transcode(voice.download('file.oga'), 'wav')
 
     # Получение голоса из аудиофайла
     recognizer = speech_recognition.Recognizer()
