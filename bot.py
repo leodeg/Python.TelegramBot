@@ -36,30 +36,68 @@ def text_message(update, context):
 
 
 def weather_command(update, context):
-    city = context.args[0]
+    if len(context.args) == 0:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Введите название города!')
+    else:
+        city = context.args[0]
+        request_to_openweather = requests.post(
+            url = config.api_url_openweather,
+            params ={
+                'q':city,
+                'appid':config.token_openweather,
+                'units':'metric',
+                'lang':'ru'
+            }
+        )
+
+        result = ''
+        if request_to_openweather.status_code == 200:
+            result = get_weather_message(request_to_openweather)
+        else:
+            result = 'Не удалось найти погоду для данного города: ' + city + '. Проверьте, правильно ли введенны данные.'
+
+        context.bot.send_message(chat_id=update.effective_chat.id, text=result)
+
+
+def weather_by_location_command(update, context):
+    if update.edited_message:
+        message = update.edited_message
+    else:
+        message = update.message
+
+    location_lat = message.location.latitude
+    location_lon = message.location.longitude
+
     request_to_openweather = requests.post(
-        url = config.api_url_openweather,
-        params ={
-            'q':city,
-            'appid':config.token_openweather,
-            'units':'metric',
-            'lang':'ru'
+        url=config.api_url_openweather,
+        params={
+            'lat': location_lat,
+            'lon': location_lon,
+            'appid': config.token_openweather,
+            'units': 'metric',
+            'lang': 'ru'
         }
     )
 
     result = ''
     if request_to_openweather.status_code == 200:
-        response = json.loads(request_to_openweather.content)
-        temperature = response['main']['temp']
-        min_temperature = response['main']['temp_min']
-        max_temperature = response['main']['temp_max']
-        pressure = response['main']['pressure']
-        description = response['weather'][0]['description']
-        result = f'В городе {city} {description}, текущая температура - {temperature}, минимальная температура - ' \
-               f'{min_temperature}, максимальная температура - {max_temperature}, давление - {pressure}.'
-    else: result = 'Не удалось найти погоду для данного города: ' + city + '. Проверьте, правильно ли введенны данные.'
+        result = get_weather_message(request_to_openweather)
+    else:
+        result = f'Не удалось найти погоду для данных координат: ({location_lat}, {location_lon}).'
 
     context.bot.send_message(chat_id=update.effective_chat.id, text=result)
+
+
+def get_weather_message(request):
+    response = json.loads(request.content)
+    city = response['name']
+    temperature = response['main']['temp']
+    min_temperature = response['main']['temp_min']
+    max_temperature = response['main']['temp_max']
+    pressure = response['main']['pressure']
+    description = response['weather'][0]['description']
+    return f'В городе {city} {description}, текущая температура - {temperature}, минимальная температура - ' \
+             f'{min_temperature}, максимальная температура - {max_temperature}, давление - {pressure}.'
 
 
 def main():
@@ -72,8 +110,11 @@ def main():
     help_command_handler = CommandHandler('help', help_command)
     weather_command_handler = CommandHandler('weather', weather_command, pass_args=True)
 
-    text_message_handler = MessageHandler(Filters.text, text_message)
     # text_message_handler = MessageHandler(Filters.text, echo_message)
+    text_message_handler = MessageHandler(Filters.text, text_message)
+    weather_by_location_message_handler = MessageHandler(Filters.location,
+                                                         weather_by_location_command,
+                                                         pass_user_data=True)
 
     # Добавляем хендлеры в диспетчер
     dispatcher.add_handler(start_command_handler)
@@ -81,6 +122,8 @@ def main():
     dispatcher.add_handler(weather_command_handler)
 
     dispatcher.add_handler(text_message_handler)
+    dispatcher.add_handler(weather_by_location_message_handler)
+
     dispatcher.add_error_handler(error)
 
     # Начинаем поиск обновлений
