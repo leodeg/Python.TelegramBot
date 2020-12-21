@@ -1,64 +1,94 @@
 import config
 import logging
+import requests
+import json
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-import os
-PORT = int(os.environ.get('PORT', 5000))
 
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-
+# Логгирование
+logging.basicConfig(format='%(asctime)s --- %(name)s --- %(levelname)s --- %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
-TOKEN = config.token
 
-# Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
-def start(update, context):
-    """Send a message when the command /start is issued."""
-    update.message.reply_text('Hi!')
-
-def help(update, context):
-    """Send a message when the command /help is issued."""
-    update.message.reply_text('Help!')
-
-def echo(update, context):
-    """Echo the user message."""
-    update.message.reply_text(update.message.text)
 
 def error(update, context):
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', update, context.error)
+    logger.warning('Update "%s" caused error "%s"', context.bot, update.error)
+
+
+def start_command(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text='Привет, давай пообщаемся?')
+
+
+def echo_message(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
+
+
+def help_command(update, context):
+    response = 'Комманды: ' \
+               '\n/start - запустить бота ' \
+               '\n/help - доступные комманды ' \
+               '\n/weather (название города) - текущая погода'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+
+def text_message(update, context):
+    response = 'Получил Ваше сообщение: ' + update.message.text
+    context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+
+def weather_command(update, context):
+    city = context.args[0]
+    request_to_openweather = requests.post(
+        url = config.api_url_openweather,
+        params ={
+            'q':city,
+            'appid':config.token_openweather,
+            'units':'metric',
+            'lang':'ru'
+        }
+    )
+
+    result = ''
+    if request_to_openweather.status_code == 200:
+        response = json.loads(request_to_openweather.content)
+        temperature = response['main']['temp']
+        min_temperature = response['main']['temp_min']
+        max_temperature = response['main']['temp_max']
+        pressure = response['main']['pressure']
+        description = response['weather'][0]['description']
+        result = f'В городе {city} {description}, текущая температура - {temperature}, минимальная температура - ' \
+               f'{min_temperature}, максимальная температура - {max_temperature}, давление - {pressure}.'
+    else: result = 'Не удалось найти погоду для данного города: ' + city + '. Проверьте, правильно ли введенны данные.'
+
+    context.bot.send_message(chat_id=update.effective_chat.id, text=result)
+
 
 def main():
-    """Start the bot."""
-    # Create the Updater and pass it your bot's token.
-    # Make sure to set use_context=True to use the new context based callbacks
-    # Post version 12 this will no longer be necessary
-    updater = Updater(TOKEN, use_context=True)
+    # Диспетчер телеграмма
+    updater = Updater(token=config.token_telegram)  # Токен API к Telegram
+    dispatcher = updater.dispatcher
 
-    # Get the dispatcher to register handlers
-    dp = updater.dispatcher
+    # Хендлеры
+    start_command_handler = CommandHandler('start', start_command)
+    help_command_handler = CommandHandler('help', help_command)
+    weather_command_handler = CommandHandler('weather', weather_command, pass_args=True)
 
-    # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
+    text_message_handler = MessageHandler(Filters.text, text_message)
+    # text_message_handler = MessageHandler(Filters.text, echo_message)
 
-    # on noncommand i.e message - echo the message on Telegram
-    dp.add_handler(MessageHandler(Filters.text, echo))
+    # Добавляем хендлеры в диспетчер
+    dispatcher.add_handler(start_command_handler)
+    dispatcher.add_handler(help_command_handler)
+    dispatcher.add_handler(weather_command_handler)
 
-    # log all errors
-    dp.add_error_handler(error)
+    dispatcher.add_handler(text_message_handler)
+    dispatcher.add_error_handler(error)
 
-    # Start the Bot
-    updater.start_webhook(listen="0.0.0.0",
-                          port=int(PORT),
-                          url_path=TOKEN)
-    updater.bot.setWebhook('https://leodegtelegrambot.herokuapp.com/' + TOKEN)
+    # Начинаем поиск обновлений
+    updater.start_polling(clean=True)
 
-    # Run the bot until you press Ctrl-C or the process receives SIGINT,
-    # SIGTERM or SIGABRT. This should be used most of the time, since
-    # start_polling() is non-blocking and will stop the bot gracefully.
+    # Останавливаем бота, если были нажаты Ctrl + C
     updater.idle()
+
 
 if __name__ == '__main__':
     main()
