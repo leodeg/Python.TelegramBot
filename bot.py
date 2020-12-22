@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def error(update, context):
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', context.bot, update.error)
+    logger.warning('Update "%s" caused error "%s"'.format(context.bot, context.error))
 
 
 def start_command(update, context):
@@ -114,7 +114,8 @@ def transcribe_voice_message(update, context):
 
     # Конвертация аудио из [audio/x-opus+ogg] в [audio/x-wav]
     voice = context.bot.getFile(update.message.voice.file_id)
-    ftransc.core.transcode(voice.download('file.oga'), 'wav')
+    audio = voice.download('file.oga')
+    ftransc.core.transcode(audio, 'wav')
 
     # Получение голоса из аудиофайла
     recognizer = speech_recognition.Recognizer()
