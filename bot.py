@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def error(update, context):
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"'.format(context.bot, context.error))
+    logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 
 def start_command(update, context):
