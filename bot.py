@@ -6,6 +6,7 @@ import os
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import speech_recognition
 import ftransc.core
+import bs4
 
 # Логгирование
 logging.basicConfig(format='%(asctime)s --- %(name)s --- %(levelname)s --- %(message)s', level=logging.INFO)
@@ -20,7 +21,8 @@ def error(update, context):
 def start_command(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id,
                              text='Привет, давай пообщаемся? Данный бот умеет показывать текущую погоду '
-                                  'по команде /weather ( название города) или геолокации, а также распознавать голос.'
+                                  'по команде - /weather (название города) или геолокации.'
+                                  'Можно производить поиск в google по команде - /google (запрос).'
                              )
 
 
@@ -32,8 +34,8 @@ def help_command(update, context):
     response = 'Комманды: ' \
                '\n/start - запустить бота ' \
                '\n/help - доступные комманды ' \
-               '\n/weather (название города) - текущая погода. ' \
-               '\nУзнать погоду также можно по геолокации.'
+               '\n/weather (название города) - текущая погода. Узнать погоду можно по геолокации.' \
+               '\n/google (запрос) - поиск запроса в google'
 
     context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
@@ -136,15 +138,54 @@ def transcribe_voice_message(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
 
+def google_search_command(update, context):
+    if len(context.args) == 0:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Введите поисковый запрос!')
+    else:
+        search_query = ' '.join(context.args[0:])
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text='Ваш запрос: {}'.format(search_query))
+
+        result = requests.get('https://google.com/search?q={}'.format(search_query))
+        result.raise_for_status()
+
+        soup = bs4.BeautifulSoup(result.text, "html.parser")
+        result_div = soup.find_all('div', attrs={'class': 'ZINbbc'})
+
+        links = []
+        titles = []
+        descriptions = []
+        for r in result_div:
+            # Checks if each element is present, else, raise exception
+            try:
+                link = r.find('a', href=True)
+                title = r.find('div', attrs={'class': 'vvjwJb'}).get_text()
+                description = r.find('div', attrs={'class': 's3v9rd'}).get_text()
+
+                # Check to make sure everything is present before appending
+                if link != '' and title != '' and description != '':
+                    links.append(link['href'])
+                    titles.append(title)
+                    descriptions.append(description)
+            # Next loop if one element is not present
+            except:
+                continue
+
+        for i in range(len(links)):
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text='https://google.com' + links[i])
+
+
 def main():
     # Диспетчер телеграмма
-    updater = Updater(token=config.token_telegram)  # Токен API к Telegram
+    updater = Updater(token=config.token_telegram, use_context=True)  # Токен API к Telegram
     dispatcher = updater.dispatcher
 
     # Хендлеры
     start_command_handler = CommandHandler('start', start_command)
     help_command_handler = CommandHandler('help', help_command)
     weather_command_handler = CommandHandler('weather', weather_command, pass_args=True)
+    google_search_command_handler = CommandHandler('google', google_search_command, pass_args=True)
 
     # text_message_handler = MessageHandler(Filters.text, echo_message)
     text_message_handler = MessageHandler(Filters.text, text_message)
@@ -157,6 +198,7 @@ def main():
     dispatcher.add_handler(start_command_handler)
     dispatcher.add_handler(help_command_handler)
     dispatcher.add_handler(weather_command_handler)
+    dispatcher.add_handler(google_search_command_handler)
 
     dispatcher.add_handler(text_message_handler)
     dispatcher.add_handler(weather_by_location_message_handler)
@@ -166,14 +208,11 @@ def main():
 
     PORT = int(os.environ.get('PORT', 5000))
 
-    updater.start_webhook(listen="0.0.0.0",
-                          port=int(PORT),
-                          url_path=config.token_telegram)
-
+    updater.start_webhook(listen="0.0.0.0", port=int(PORT), url_path=config.token_telegram)
     updater.bot.setWebhook('https://leodegtelegrambot.herokuapp.com/' + config.token_telegram)
 
     # Начинаем поиск обновлений
-    #updater.start_polling(clean=True)
+    # updater.start_polling(clean=True)
 
     # Останавливаем бота, если были нажаты Ctrl + C
     updater.idle()
