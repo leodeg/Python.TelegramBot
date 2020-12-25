@@ -5,8 +5,8 @@ import json
 import os
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import speech_recognition
-import ftransc.core
 import bs4
+import subprocess
 
 # Логгирование
 logging.basicConfig(format='%(asctime)s --- %(name)s --- %(levelname)s --- %(message)s', level=logging.INFO)
@@ -19,12 +19,15 @@ def error(update, context):
 
 
 def start_command(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id,
-                             text='Привет, давай пообщаемся? Данный бот умеет показывать текущую погоду '
-                                  'по команде - /weather (название города) или геолокации.'
-                                  'Можно производить поиск в google по команде - /google (запрос). '
-                                  'Можно поизводить поиск по хабру - /habr (запрос)'
-                             )
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text='Привет, давай пообщаемся? '
+             '\nБот умеет переводить голосовые сообщения на русском языке.'
+             '\nБот умеет показывать текущую погоду по команде - /weather (название города) или вашей геолокации.'
+             '\nБот умеет производить поиск в Google по команде - /google (запрос). '
+             '\nБот умеет поизводить поиск по сайту Хабр - /habr (запрос).'
+             '\nВсе запросы пишутся без скобочек, просто через пробел.'
+    )
 
 
 def echo_message(update, context):
@@ -33,8 +36,8 @@ def echo_message(update, context):
 
 def help_command(update, context):
     response = 'Комманды: ' \
-               '\n/start - запустить бота ' \
-               '\n/help - доступные комманды ' \
+               '\n/start - запустить бота' \
+               '\n/help - доступные комманды' \
                '\n/weather (название города) - текущая погода. Узнать погоду можно по геолокации.' \
                '\n/google (запрос) - поиск запроса в google ' \
                '\n/habr (запрос) - поиск по хабру'
@@ -113,29 +116,27 @@ def get_weather_message(request):
 
 
 def transcribe_voice_message(update, context):
-    duration = update.message.voice.duration
-    logger.info('transcribe_voice. Message duration: {}'.format(duration))
-
-    # Конвертация аудио из [audio/x-opus+ogg] в [audio/x-wav]
     voice = context.bot.getFile(update.message.voice.file_id)
-    audio = voice.download('file.oga')
-    ftransc.core.transcode(audio, 'wav')
+    voice.download('audio.ogg')
+
+    # Конвертация "ogg" в "wav"
+    subprocess.run(['ffmpeg', '-i', 'audio.ogg', 'audio.wav', '-y'])
 
     # Получение голоса из аудиофайла
     recognizer = speech_recognition.Recognizer()
-    with speech_recognition.WavFile('file.wav') as source:
-        # recognizer.adjust_for_ambient_noise(source)
+    with speech_recognition.WavFile('audio.wav') as source:
         audio = recognizer.record(source)
 
     # Конвертация звука в текст
-    text = ''
     try:
-        text = recognizer.recognize_google(audio)
+        text = recognizer.recognize_google(audio, language='ru_RU')
         logger.info(text)
     except speech_recognition.UnknownValueError:
-        logger.warning('Невозможно распознать голос и конвертировать его в текст!')
+        text = 'Невозможно распознать голос и конвертировать его в текст!'
+        logger.warning(text)
     except speech_recognition.RequestError as error:
-        logger.warning('Невозможно отправить запрос на распознание голоса! \nСообщение ошибки: [{}]'.format(error))
+        text = 'Невозможно отправить запрос на распознание голоса! \nСообщение ошибки: [{}]'.format(error)
+        logger.warning(text)
 
     context.bot.send_message(chat_id=update.effective_chat.id, text=text)
 
