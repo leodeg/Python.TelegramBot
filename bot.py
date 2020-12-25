@@ -22,7 +22,8 @@ def start_command(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id,
                              text='Привет, давай пообщаемся? Данный бот умеет показывать текущую погоду '
                                   'по команде - /weather (название города) или геолокации.'
-                                  'Можно производить поиск в google по команде - /google (запрос).'
+                                  'Можно производить поиск в google по команде - /google (запрос). '
+                                  'Можно поизводить поиск по хабру - /habr (запрос)'
                              )
 
 
@@ -35,7 +36,8 @@ def help_command(update, context):
                '\n/start - запустить бота ' \
                '\n/help - доступные комманды ' \
                '\n/weather (название города) - текущая погода. Узнать погоду можно по геолокации.' \
-               '\n/google (запрос) - поиск запроса в google'
+               '\n/google (запрос) - поиск запроса в google ' \
+               '\n/habr (запрос) - поиск по хабру'
 
     context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
