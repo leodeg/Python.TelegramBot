@@ -176,6 +176,39 @@ def google_search_command(update, context):
                                      text='https://google.com' + links[i])
 
 
+def habr_search_command(update, context):
+    if len(context.args) == 0:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Введите поисковый запрос!')
+    else:
+        search_query = ' '.join(context.args[0:])
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text='Ваш запрос: {}'.format(search_query))
+
+        result = requests.get('https://habr.com/ru/search/?q={}'.format(search_query))
+        result.raise_for_status()
+
+        soup = bs4.BeautifulSoup(result.text, "html.parser")
+        result = soup.find_all('h2', attrs={'class': 'post__title'})
+
+        links = []
+        for r in result:
+            link = r.find('a', href=True)
+            if link != '':
+                links.append(link['href'])
+
+        links_count = len(links)
+        if links_count > 0:
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='Количество найденных статей: {}'.format(links_count))
+            for i in range(links_count):
+                context.bot.send_message(chat_id=update.effective_chat.id, text=links[i])
+        else:
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='Статей по запросу [{}] не найдено!'.format(search_query))
+
+
 def main():
     # Диспетчер телеграмма
     updater = Updater(token=config.token_telegram, use_context=True)  # Токен API к Telegram
@@ -186,6 +219,7 @@ def main():
     help_command_handler = CommandHandler('help', help_command)
     weather_command_handler = CommandHandler('weather', weather_command, pass_args=True)
     google_search_command_handler = CommandHandler('google', google_search_command, pass_args=True)
+    habr_search_command_handler = CommandHandler('habr', habr_search_command, pass_args=True)
 
     # text_message_handler = MessageHandler(Filters.text, echo_message)
     text_message_handler = MessageHandler(Filters.text, text_message)
@@ -199,12 +233,13 @@ def main():
     dispatcher.add_handler(help_command_handler)
     dispatcher.add_handler(weather_command_handler)
     dispatcher.add_handler(google_search_command_handler)
+    dispatcher.add_handler(habr_search_command_handler)
 
     dispatcher.add_handler(text_message_handler)
     dispatcher.add_handler(weather_by_location_message_handler)
     dispatcher.add_handler(transcribe_voice_message_handler)
 
-    dispatcher.add_error_handler(error)
+    # dispatcher.add_error_handler(error)
 
     PORT = int(os.environ.get('PORT', 5000))
 
